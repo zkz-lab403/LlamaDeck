@@ -4,11 +4,13 @@
 #include "Icons.h"
 #include "ModelStore.h"
 #include "ServerController.h"
+#include "SystemMonitor.h"
 #include "Theme.h"
 #include "Widgets.h"
 
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
@@ -385,6 +387,61 @@ void ModelPage::buildUi()
     grid->addWidget(makeField(QStringLiteral("线程数 (-t)"), m_threads), 1, 1);
     config->addLayout(grid);
 
+    config->addWidget(makeDivider(configCard));
+
+    auto *perfHeader = new QHBoxLayout();
+    auto *perfTitleBox = new QVBoxLayout();
+    perfTitleBox->setSpacing(1);
+    perfTitleBox->addWidget(makeLabel(QStringLiteral("性能参数"), QStringLiteral("FieldLabel"),
+                                      configCard));
+    auto *perfHint = makeLabel(QStringLiteral("批处理、并行槽位与 KV 缓存，影响吞吐和显存占用"),
+                               QStringLiteral("Hint"), configCard);
+    perfHint->setWordWrap(true);
+    perfTitleBox->addWidget(perfHint);
+    perfHeader->addLayout(perfTitleBox, 1);
+
+    m_recommendButton = new QPushButton(QStringLiteral("按硬件推荐"), configCard);
+    m_recommendButton->setObjectName(QStringLiteral("Ghost"));
+    m_recommendButton->setCursor(Qt::PointingHandCursor);
+    m_recommendButton->setMinimumHeight(26);
+    perfHeader->addWidget(m_recommendButton, 0, Qt::AlignTop);
+    config->addLayout(perfHeader);
+
+    m_batch = new QSpinBox(configCard);
+    styleSpin(m_batch, 64, 16384, m_settings->batch, 128);
+    m_ubatch = new QSpinBox(configCard);
+    styleSpin(m_ubatch, 64, 8192, m_settings->ubatch, 64);
+    m_parallel = new QSpinBox(configCard);
+    styleSpin(m_parallel, 1, 16, m_settings->parallel);
+
+    m_kvCache = new QComboBox(configCard);
+    m_kvCache->addItem(QStringLiteral("f16（默认，质量最好）"), QStringLiteral("f16"));
+    m_kvCache->addItem(QStringLiteral("q8_0（省显存）"), QStringLiteral("q8_0"));
+    m_kvCache->addItem(QStringLiteral("q4_0（更省显存）"), QStringLiteral("q4_0"));
+    m_kvCache->setMinimumHeight(34);
+    const int kvIndex = m_kvCache->findData(m_settings->kvCacheType);
+    m_kvCache->setCurrentIndex(kvIndex >= 0 ? kvIndex : 0);
+
+    auto *perfGrid = new QGridLayout();
+    perfGrid->setHorizontalSpacing(12);
+    perfGrid->setVerticalSpacing(10);
+    perfGrid->addWidget(makeField(QStringLiteral("批大小 (-b)"), m_batch), 0, 0);
+    perfGrid->addWidget(makeField(QStringLiteral("微批 (-ub)"), m_ubatch), 0, 1);
+    perfGrid->addWidget(makeField(QStringLiteral("并行槽位 (-np)"), m_parallel), 1, 0);
+    perfGrid->addWidget(makeField(QStringLiteral("KV 缓存类型"), m_kvCache), 1, 1);
+    config->addLayout(perfGrid);
+
+    m_mlock = new ToggleSwitch(configCard);
+    m_mlock->setChecked(m_settings->mlock);
+    m_noMmap = new ToggleSwitch(configCard);
+    m_noMmap->setChecked(m_settings->noMmap);
+    config->addWidget(makeSwitchRow(QStringLiteral("锁定内存 (--mlock)"),
+                                    QStringLiteral("防止模型被换出，需要足够空闲内存"), m_mlock));
+    config->addWidget(makeSwitchRow(QStringLiteral("禁用 mmap (--no-mmap)"),
+                                    QStringLiteral("整模型读入内存，避免缺页抖动"), m_noMmap));
+
+    config->addWidget(makeDivider(configCard));
+
     m_flashAttn = new ToggleSwitch(configCard);
     m_flashAttn->setChecked(m_settings->flashAttn);
     m_jinja = new ToggleSwitch(configCard);
@@ -502,6 +559,18 @@ void ModelPage::buildUi()
             [this]() { updateCommandPreview(); });
     connect(m_threads, QOverload<int>::of(&QSpinBox::valueChanged), this,
             [this]() { updateCommandPreview(); });
+    connect(m_batch, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { updateCommandPreview(); });
+    connect(m_ubatch, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { updateCommandPreview(); });
+    connect(m_parallel, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { updateCommandPreview(); });
+    connect(m_kvCache, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this]() { updateCommandPreview(); });
+    connect(m_mlock, &ToggleSwitch::toggled, this, [this]() { updateCommandPreview(); });
+    connect(m_noMmap, &ToggleSwitch::toggled, this, [this]() { updateCommandPreview(); });
+    connect(m_recommendButton, &QPushButton::clicked, this,
+            &ModelPage::applyRecommendedPerformance);
     connect(m_flashAttn, &ToggleSwitch::toggled, this, [this]() { updateCommandPreview(); });
     connect(m_jinja, &ToggleSwitch::toggled, this, [this]() { updateCommandPreview(); });
     connect(m_apiKey, &QLineEdit::textChanged, this, [this]() { updateCommandPreview(); });
@@ -650,6 +719,13 @@ void ModelPage::applyOptions(const LaunchOptions &options)
     m_ctx->setValue(options.ctx);
     m_gpuLayers->setValue(options.gpuLayers);
     m_threads->setValue(options.threads);
+    m_batch->setValue(options.batch);
+    m_ubatch->setValue(options.ubatch);
+    m_parallel->setValue(options.parallel);
+    const int kvIndex = m_kvCache->findData(options.kvCacheType);
+    m_kvCache->setCurrentIndex(kvIndex >= 0 ? kvIndex : 0);
+    m_mlock->setChecked(options.mlock);
+    m_noMmap->setChecked(options.noMmap);
     m_flashAttn->setChecked(options.flashAttn);
     m_jinja->setChecked(options.jinja);
     m_apiKey->setText(options.apiKey);
@@ -668,6 +744,13 @@ void ModelPage::syncDefaults()
     m_ctx->setValue(m_settings->ctx);
     m_gpuLayers->setValue(m_settings->gpuLayers);
     m_threads->setValue(m_settings->threads);
+    m_batch->setValue(m_settings->batch);
+    m_ubatch->setValue(m_settings->ubatch);
+    m_parallel->setValue(m_settings->parallel);
+    const int kvIndex = m_kvCache->findData(m_settings->kvCacheType);
+    m_kvCache->setCurrentIndex(kvIndex >= 0 ? kvIndex : 0);
+    m_mlock->setChecked(m_settings->mlock);
+    m_noMmap->setChecked(m_settings->noMmap);
     m_flashAttn->setChecked(m_settings->flashAttn);
     m_jinja->setChecked(m_settings->jinja);
     m_apiKey->setText(m_settings->apiKey);
@@ -684,6 +767,12 @@ LaunchOptions ModelPage::currentOptions() const
     options.ctx = m_ctx->value();
     options.gpuLayers = m_gpuLayers->value();
     options.threads = m_threads->value();
+    options.batch = m_batch->value();
+    options.ubatch = m_ubatch->value();
+    options.parallel = m_parallel->value();
+    options.kvCacheType = m_kvCache->currentData().toString();
+    options.mlock = m_mlock->isChecked();
+    options.noMmap = m_noMmap->isChecked();
     options.flashAttn = m_flashAttn->isChecked();
     options.jinja = m_jinja->isChecked();
     options.apiKey = m_apiKey->text().trimmed();
@@ -761,6 +850,35 @@ void ModelPage::updateCommandPreview()
     m_endpoint->setText(QStringLiteral("http://127.0.0.1:%1").arg(displayPort));
 }
 
+void ModelPage::applyRecommendedPerformance()
+{
+    const HardwareInfo hardware = SystemMonitor::queryHardware();
+
+    m_parallel->setValue(1);
+    m_batch->setValue(2048);
+    m_ubatch->setValue(512);
+    m_flashAttn->setChecked(true);
+
+    const bool lowVram = hardware.nvidia && hardware.vramTotalMb > 0.0
+        && hardware.vramTotalMb <= 8192.0;
+    const QString cacheType = lowVram ? QStringLiteral("q8_0") : QStringLiteral("f16");
+    const int index = m_kvCache->findData(cacheType);
+    if (index >= 0)
+        m_kvCache->setCurrentIndex(index);
+
+    updateCommandPreview();
+
+    if (hardware.gpuName.isEmpty()) {
+        emit toastRequested(QStringLiteral(
+            "已应用推荐参数：并行 1、批 2048/512；未检测到 NVIDIA GPU，KV 缓存保持 f16。"));
+        return;
+    }
+
+    emit toastRequested(QStringLiteral("已应用推荐参数：并行 1、批 2048/512、KV %1（%2 · %3 GB 显存）")
+                           .arg(cacheType, hardware.gpuName)
+                           .arg(hardware.vramTotalMb / 1024.0, 0, 'f', 1));
+}
+
 void ModelPage::updateServerHint()
 {
     const bool hasServer = !m_settings->llamaServerPath.isEmpty()
@@ -794,6 +912,13 @@ void ModelPage::setConfigEnabled(bool enabled)
     m_ctx->setEnabled(enabled);
     m_gpuLayers->setEnabled(enabled);
     m_threads->setEnabled(enabled);
+    m_batch->setEnabled(enabled);
+    m_ubatch->setEnabled(enabled);
+    m_parallel->setEnabled(enabled);
+    m_kvCache->setEnabled(enabled);
+    m_mlock->setEnabled(enabled);
+    m_noMmap->setEnabled(enabled);
+    m_recommendButton->setEnabled(enabled);
     m_flashAttn->setEnabled(enabled);
     m_jinja->setEnabled(enabled);
     m_apiKey->setEnabled(enabled);

@@ -458,6 +458,12 @@ void MainWindow::startSelectedModel(bool quiet)
     m_settings->ctx = options.ctx;
     m_settings->gpuLayers = options.gpuLayers;
     m_settings->threads = options.threads;
+    m_settings->batch = options.batch;
+    m_settings->ubatch = options.ubatch;
+    m_settings->parallel = options.parallel;
+    m_settings->kvCacheType = options.kvCacheType;
+    m_settings->mlock = options.mlock;
+    m_settings->noMmap = options.noMmap;
     m_settings->flashAttn = options.flashAttn;
     m_settings->jinja = options.jinja;
     m_settings->apiKey = options.apiKey;

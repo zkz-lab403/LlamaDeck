@@ -64,6 +64,12 @@ void AppSettings::load()
     ctx = s.value(QStringLiteral("runtime/ctx"), 4096).toInt();
     gpuLayers = s.value(QStringLiteral("runtime/gpuLayers"), 99).toInt();
     threads = s.value(QStringLiteral("runtime/threads"), 0).toInt();
+    batch = s.value(QStringLiteral("runtime/batch"), 2048).toInt();
+    ubatch = s.value(QStringLiteral("runtime/ubatch"), 512).toInt();
+    parallel = s.value(QStringLiteral("runtime/parallel"), 1).toInt();
+    kvCacheType = s.value(QStringLiteral("runtime/kvCacheType"), QStringLiteral("f16")).toString();
+    mlock = s.value(QStringLiteral("runtime/mlock"), false).toBool();
+    noMmap = s.value(QStringLiteral("runtime/noMmap"), false).toBool();
     flashAttn = s.value(QStringLiteral("runtime/flashAttn"), true).toBool();
     jinja = s.value(QStringLiteral("runtime/jinja"), true).toBool();
     autoStartLast = s.value(QStringLiteral("startup/autoStartLast"), false).toBool();
@@ -98,6 +104,12 @@ void AppSettings::save()
     s.setValue(QStringLiteral("runtime/ctx"), ctx);
     s.setValue(QStringLiteral("runtime/gpuLayers"), gpuLayers);
     s.setValue(QStringLiteral("runtime/threads"), threads);
+    s.setValue(QStringLiteral("runtime/batch"), batch);
+    s.setValue(QStringLiteral("runtime/ubatch"), ubatch);
+    s.setValue(QStringLiteral("runtime/parallel"), parallel);
+    s.setValue(QStringLiteral("runtime/kvCacheType"), kvCacheType);
+    s.setValue(QStringLiteral("runtime/mlock"), mlock);
+    s.setValue(QStringLiteral("runtime/noMmap"), noMmap);
     s.setValue(QStringLiteral("runtime/flashAttn"), flashAttn);
     s.setValue(QStringLiteral("runtime/jinja"), jinja);
     s.setValue(QStringLiteral("startup/autoStartLast"), autoStartLast);

@@ -3,6 +3,7 @@
 #include <QWidget>
 
 class AppSettings;
+class QComboBox;
 class QLineEdit;
 class QSpinBox;
 class ToggleSwitch;
@@ -33,6 +34,12 @@ private:
     QSpinBox *m_ctx = nullptr;
     QSpinBox *m_gpuLayers = nullptr;
     QSpinBox *m_threads = nullptr;
+    QSpinBox *m_batch = nullptr;
+    QSpinBox *m_ubatch = nullptr;
+    QSpinBox *m_parallel = nullptr;
+    QComboBox *m_kvCache = nullptr;
+    ToggleSwitch *m_mlock = nullptr;
+    ToggleSwitch *m_noMmap = nullptr;
     QLineEdit *m_apiKey = nullptr;
     QLineEdit *m_extraArgs = nullptr;
     ToggleSwitch *m_flashAttn = nullptr;

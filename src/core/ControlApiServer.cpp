@@ -328,6 +328,13 @@ void ControlApiServer::handleRequest(QTcpSocket *socket, const QByteArray &metho
         options.ctx = obj.value(QStringLiteral("ctx")).toInt(m_settings->ctx);
         options.gpuLayers = obj.value(QStringLiteral("ngl")).toInt(m_settings->gpuLayers);
         options.threads = obj.value(QStringLiteral("threads")).toInt(m_settings->threads);
+        options.batch = obj.value(QStringLiteral("batch")).toInt(m_settings->batch);
+        options.ubatch = obj.value(QStringLiteral("ubatch")).toInt(m_settings->ubatch);
+        options.parallel = obj.value(QStringLiteral("parallel")).toInt(m_settings->parallel);
+        options.kvCacheType = obj.value(QStringLiteral("kvCacheType"))
+                                  .toString(m_settings->kvCacheType);
+        options.mlock = obj.value(QStringLiteral("mlock")).toBool(m_settings->mlock);
+        options.noMmap = obj.value(QStringLiteral("noMmap")).toBool(m_settings->noMmap);
         options.flashAttn = obj.value(QStringLiteral("flashAttn")).toBool(m_settings->flashAttn);
         options.jinja = obj.value(QStringLiteral("jinja")).toBool(m_settings->jinja);
         options.apiKey = obj.value(QStringLiteral("apiKey")).toString(m_settings->apiKey);

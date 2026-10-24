@@ -1,10 +1,13 @@
 #pragma once
 
+#include "SystemMonitor.h"
+
 #include <QWidget>
 
 class ServerController;
 class StatCard;
 class SpeedChart;
+class ResourceMeter;
 class QPlainTextEdit;
 class QLabel;
 class ToggleSwitch;
@@ -27,6 +30,7 @@ private:
     void updateStats();
     void updateUptime();
     void updateState();
+    void updateResources(const SystemSample &sample);
     void appendLog(const QString &line);
     void clearLog();
     void copyLog();
@@ -40,6 +44,12 @@ private:
     QLabel *m_chartBadge = nullptr;
     QLabel *m_peakLabel = nullptr;
     QLabel *m_tokensLabel = nullptr;
+    SystemMonitor *m_system = nullptr;
+    QLabel *m_resourceHint = nullptr;
+    ResourceMeter *m_cpuMeter = nullptr;
+    ResourceMeter *m_memMeter = nullptr;
+    ResourceMeter *m_gpuMeter = nullptr;
+    ResourceMeter *m_vramMeter = nullptr;
     QPlainTextEdit *m_log = nullptr;
     QLabel *m_logMeta = nullptr;
     ToggleSwitch *m_autoScroll = nullptr;

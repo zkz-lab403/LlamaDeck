@@ -84,6 +84,21 @@ QStringList ServerController::buildArguments(const LaunchOptions &options)
         args << QStringLiteral("-ngl") << QString::number(options.gpuLayers);
     if (options.threads > 0)
         args << QStringLiteral("-t") << QString::number(options.threads);
+    if (options.batch > 0)
+        args << QStringLiteral("-b") << QString::number(options.batch);
+    if (options.ubatch > 0)
+        args << QStringLiteral("-ub") << QString::number(options.ubatch);
+    if (options.parallel > 0)
+        args << QStringLiteral("-np") << QString::number(options.parallel);
+    if (!options.kvCacheType.isEmpty()
+        && options.kvCacheType.compare(QLatin1String("f16"), Qt::CaseInsensitive) != 0) {
+        args << QStringLiteral("-ctk") << options.kvCacheType;
+        args << QStringLiteral("-ctv") << options.kvCacheType;
+    }
+    if (options.mlock)
+        args << QStringLiteral("--mlock");
+    if (options.noMmap)
+        args << QStringLiteral("--no-mmap");
     if (options.flashAttn)
         args << QStringLiteral("-fa") << QStringLiteral("on");
     if (options.jinja)

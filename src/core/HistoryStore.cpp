@@ -20,6 +20,12 @@ QJsonObject optionsToJson(const LaunchOptions &o)
     obj[QStringLiteral("ctx")] = o.ctx;
     obj[QStringLiteral("gpuLayers")] = o.gpuLayers;
     obj[QStringLiteral("threads")] = o.threads;
+    obj[QStringLiteral("batch")] = o.batch;
+    obj[QStringLiteral("ubatch")] = o.ubatch;
+    obj[QStringLiteral("parallel")] = o.parallel;
+    obj[QStringLiteral("kvCacheType")] = o.kvCacheType;
+    obj[QStringLiteral("mlock")] = o.mlock;
+    obj[QStringLiteral("noMmap")] = o.noMmap;
     obj[QStringLiteral("flashAttn")] = o.flashAttn;
     obj[QStringLiteral("jinja")] = o.jinja;
     obj[QStringLiteral("apiKey")] = o.apiKey;
@@ -35,6 +41,12 @@ LaunchOptions optionsFromJson(const QJsonObject &obj)
     o.ctx = obj.value(QStringLiteral("ctx")).toInt(4096);
     o.gpuLayers = obj.value(QStringLiteral("gpuLayers")).toInt(99);
     o.threads = obj.value(QStringLiteral("threads")).toInt(0);
+    o.batch = obj.value(QStringLiteral("batch")).toInt(2048);
+    o.ubatch = obj.value(QStringLiteral("ubatch")).toInt(512);
+    o.parallel = obj.value(QStringLiteral("parallel")).toInt(1);
+    o.kvCacheType = obj.value(QStringLiteral("kvCacheType")).toString(QStringLiteral("f16"));
+    o.mlock = obj.value(QStringLiteral("mlock")).toBool(false);
+    o.noMmap = obj.value(QStringLiteral("noMmap")).toBool(false);
     o.flashAttn = obj.value(QStringLiteral("flashAttn")).toBool(true);
     o.jinja = obj.value(QStringLiteral("jinja")).toBool(true);
     o.apiKey = obj.value(QStringLiteral("apiKey")).toString();

@@ -20,6 +20,8 @@ set(SOURCES
     src/core/HistoryStore.cpp
     src/core/ServerController.h
     src/core/ServerController.cpp
+    src/core/SystemMonitor.h
+    src/core/SystemMonitor.cpp
     src/core/ControlApiServer.h
     src/core/ControlApiServer.cpp
     src/ui/Theme.h

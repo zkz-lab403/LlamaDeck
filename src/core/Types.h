@@ -9,6 +9,12 @@ struct LaunchOptions {
     int ctx = 4096;
     int gpuLayers = 99;
     int threads = 0;
+    int batch = 2048;
+    int ubatch = 512;
+    int parallel = 1;
+    QString kvCacheType = QStringLiteral("f16");
+    bool mlock = false;
+    bool noMmap = false;
     bool flashAttn = true;
     bool jinja = true;
     QString apiKey;

@@ -8,8 +8,9 @@
 
 | 模块 | 说明 |
 | --- | --- |
-| 模型管理 | 递归扫描模型目录下的 `.gguf`，解析元数据（架构、参数量、上下文长度、量化类型），支持搜索、文件大小展示与一键启动 |
+| 模型管理 | 递归扫描模型目录下的 `.gguf`，解析元数据（架构、参数量、上下文长度、量化类型），支持搜索、文件大小展示与一键启动；批处理、并行槽位、KV 缓存等性能参数可调，并可一键按硬件推荐 |
 | 运行监控 | 健康检查、实时 token/s 速度曲线、峰值/平均速度、已生成 token 数、请求数、运行时长、实时日志 |
+| 系统资源 | CPU、内存、GPU 利用率、显存占用与 GPU 温度，每 2 秒采样（NVIDIA GPU 通过 NVML 读取） |
 | 历史记录 | 每次启动自动落盘：模型、状态、时长、平均/峰值速度、token 数、完整命令，支持复制、重放、导出 CSV |
 | API 接口 | 内置流式聊天测试（SSE），支持中途停止回答，右侧实时显示速度、首字延迟与已生成 token 数 |
 | API 文档 | 汇总 `llama-server` 与本地控制 API 的端点列表，附 curl 调用示例 |
@@ -41,7 +42,7 @@ GUI 会根据当前配置拼出类似命令，并显示在模型页卡片底部�
 
 ```bash
 llama-server.exe --model "D:/models/Qwen3-4B-Q4_K_M.gguf" --host 127.0.0.1 --port 8080 \
-  -c 4096 -ngl 99 -t 0 -fa on --jinja
+  -c 4096 -ngl 99 -b 2048 -ub 512 -np 1 -ctk q8_0 -ctv q8_0 -fa on --jinja
 ```
 
 规则：
@@ -52,10 +53,22 @@ llama-server.exe --model "D:/models/Qwen3-4B-Q4_K_M.gguf" --host 127.0.0.1 --por
 | `-c` | 上下文长度 |
 | `-ngl` | GPU 卸载层数（`-1` 表示不传，即纯 CPU） |
 | `-t` | 线程数（`0` 表示由 llama.cpp 自动决定，不传参） |
+| `-b` / `-ub` | 逻辑批大小 / 微批大小，影响提示词预填充速度 |
+| `-np` | 并行槽位数量，`1` 表示单会话独占上下文，通常生成更快 |
+| `-ctk` / `-ctv` | KV 缓存量化类型，选 `q8_0` 可省约一半显存，`f16` 为默认最高质量 |
+| `--mlock` / `--no-mmap` | 锁定内存 / 禁用内存映射，避免运行中缺页导致的速度抖动 |
 | `-fa on` | 开启 Flash Attention（新版 llama.cpp 的 `-fa` 需要取值 `on/off/auto`） |
 | `--jinja` | 使用模型自带聊天模板（OpenAI 接口必须） |
 | `--api-key` | 设置了 API Key 时追加 |
 | 额外参数 | 设置页/模型页填写的自定义参数，原样追加 |
+
+## 性能建议
+
+- 模型页点击 **按硬件推荐**：会自动设为并行 1、批 2048/512，并在显存 ≤ 8 GB 时把 KV 缓存切到 `q8_0`。
+- 单用户场景保持 `-np 1`，避免上下文被多个槽位平分；多人并发再调大。
+- 显存吃紧时优先降低 `-ngl` 或使用 `q8_0/q4_0` KV 缓存，而不是直接减小上下文。
+- 内存充足时开启 `--mlock` 可避免运行中模型被换出；模型比空闲内存大时不要开启。
+- 在 **运行监控 → 系统资源** 里观察：GPU 利用率低而 CPU 高，通常说明层没有卸载到 GPU（显存不足或 `-ngl` 太小）。
 
 ## API 接口
 
@@ -99,7 +112,7 @@ curl -X POST http://127.0.0.1:8745/api/launch \
 curl -X POST http://127.0.0.1:8745/api/stop
 ```
 
-`/api/launch` 支持的字段：`model`（必填）、`port`、`ctx`、`ngl`、`threads`、`flashAttn`、`jinja`、`apiKey`、`extraArgs`；未提供的字段沿用设置页默认值。
+`/api/launch` 支持的字段：`model`（必填）、`port`、`ctx`、`ngl`、`threads`、`batch`、`ubatch`、`parallel`、`kvCacheType`（`f16`/`q8_0`/`q4_0`）、`mlock`、`noMmap`、`flashAttn`、`jinja`、`apiKey`、`extraArgs`；未提供的字段沿用设置页默认值。
 
 ## 从源码构建
 
@@ -133,6 +146,7 @@ windeployqt --release --no-translations --compiler-runtime build/LlamaDeck.exe
 │  │  ├─ ModelStore.*      # 模型扫描、量化识别、格式化
 │  │  ├─ HistoryStore.*    # 历史 JSON 持久化、CSV 导出
 │  │  ├─ ServerController.*# 进程管理、健康检查、metrics 与日志测速
+│  │  ├─ SystemMonitor.*   # CPU / 内存 / NVIDIA GPU 采样
 │  │  └─ ControlApiServer.*# 本地 HTTP 控制 API
 │  └─ ui                   # 界面层
 │     ├─ Theme.*           # 配色与 QSS

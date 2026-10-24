@@ -8,6 +8,7 @@ class AppSettings;
 class ServerController;
 class QLabel;
 class QLineEdit;
+class QComboBox;
 class QListWidget;
 class QListWidgetItem;
 class QPlainTextEdit;
@@ -46,6 +47,7 @@ private:
     void updateServerHint();
     void updateCountLabel();
     void setConfigEnabled(bool enabled);
+    void applyRecommendedPerformance();
     QListWidgetItem *itemForPath(const QString &path) const;
     bool hasSelection() const;
 
@@ -66,6 +68,13 @@ private:
     QSpinBox *m_ctx = nullptr;
     QSpinBox *m_gpuLayers = nullptr;
     QSpinBox *m_threads = nullptr;
+    QSpinBox *m_batch = nullptr;
+    QSpinBox *m_ubatch = nullptr;
+    QSpinBox *m_parallel = nullptr;
+    QComboBox *m_kvCache = nullptr;
+    ToggleSwitch *m_mlock = nullptr;
+    ToggleSwitch *m_noMmap = nullptr;
+    QPushButton *m_recommendButton = nullptr;
     ToggleSwitch *m_flashAttn = nullptr;
     ToggleSwitch *m_jinja = nullptr;
     QLineEdit *m_apiKey = nullptr;

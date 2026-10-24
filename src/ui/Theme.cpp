@@ -148,6 +148,20 @@ QLabel#StatCaption {
     color: #6E7A8F;
     font-size: 10px;
 }
+QLabel#MeterValue {
+    color: #E7ECF5;
+    font-size: 12px;
+    font-weight: 600;
+}
+QProgressBar#MeterBar {
+    background-color: #1A2330;
+    border: none;
+    border-radius: 3px;
+}
+QProgressBar#MeterBar::chunk {
+    border-radius: 3px;
+    background-color: #6C8CFF;
+}
 QLabel#ServerPill {
     border-radius: 11px;
     padding: 5px 12px;

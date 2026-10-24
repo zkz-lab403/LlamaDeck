@@ -5,6 +5,7 @@
 #include "Theme.h"
 #include "Widgets.h"
 
+#include <QComboBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -184,6 +185,27 @@ void SettingsPage::buildUi()
     grid->addWidget(makeField(QStringLiteral("默认线程数 (-t)"), m_threads), 1, 1);
     defaults->addLayout(grid);
 
+    m_batch = makeSpin(defaultsCard, 64, 16384, m_settings->batch, 128);
+    m_ubatch = makeSpin(defaultsCard, 64, 8192, m_settings->ubatch, 64);
+    m_parallel = makeSpin(defaultsCard, 1, 16, m_settings->parallel);
+
+    m_kvCache = new QComboBox(defaultsCard);
+    m_kvCache->addItem(QStringLiteral("f16（默认，质量最好）"), QStringLiteral("f16"));
+    m_kvCache->addItem(QStringLiteral("q8_0（省显存）"), QStringLiteral("q8_0"));
+    m_kvCache->addItem(QStringLiteral("q4_0（更省显存）"), QStringLiteral("q4_0"));
+    m_kvCache->setMinimumHeight(34);
+    const int kvIndex = m_kvCache->findData(m_settings->kvCacheType);
+    m_kvCache->setCurrentIndex(kvIndex >= 0 ? kvIndex : 0);
+
+    auto *perfGrid = new QGridLayout();
+    perfGrid->setHorizontalSpacing(12);
+    perfGrid->setVerticalSpacing(10);
+    perfGrid->addWidget(makeField(QStringLiteral("默认批大小 (-b)"), m_batch), 0, 0);
+    perfGrid->addWidget(makeField(QStringLiteral("默认微批 (-ub)"), m_ubatch), 0, 1);
+    perfGrid->addWidget(makeField(QStringLiteral("默认并行槽位 (-np)"), m_parallel), 1, 0);
+    perfGrid->addWidget(makeField(QStringLiteral("默认 KV 缓存类型"), m_kvCache), 1, 1);
+    defaults->addLayout(perfGrid);
+
     m_flashAttn = new ToggleSwitch(defaultsCard);
     m_jinja = new ToggleSwitch(defaultsCard);
     defaults->addWidget(makeToggleRow(QStringLiteral("Flash Attention"),
@@ -192,6 +214,15 @@ void SettingsPage::buildUi()
     defaults->addWidget(makeToggleRow(QStringLiteral("Jinja 聊天模板"),
                                       QStringLiteral("默认启用聊天模板与工具调用支持"), m_jinja,
                                       defaultsCard));
+
+    m_mlock = new ToggleSwitch(defaultsCard);
+    m_noMmap = new ToggleSwitch(defaultsCard);
+    defaults->addWidget(makeToggleRow(QStringLiteral("锁定内存 (--mlock)"),
+                                      QStringLiteral("默认防止模型被换出，需要足够空闲内存"),
+                                      m_mlock, defaultsCard));
+    defaults->addWidget(makeToggleRow(QStringLiteral("禁用 mmap (--no-mmap)"),
+                                      QStringLiteral("默认整模型读入内存，避免缺页抖动"),
+                                      m_noMmap, defaultsCard));
 
     m_apiKey = new QLineEdit(defaultsCard);
     m_apiKey->setPlaceholderText(QStringLiteral("可选，留空表示无需鉴权"));
@@ -282,6 +313,13 @@ void SettingsPage::refresh()
     m_ctx->setValue(m_settings->ctx);
     m_gpuLayers->setValue(m_settings->gpuLayers);
     m_threads->setValue(m_settings->threads);
+    m_batch->setValue(m_settings->batch);
+    m_ubatch->setValue(m_settings->ubatch);
+    m_parallel->setValue(m_settings->parallel);
+    const int kvIndex = m_kvCache->findData(m_settings->kvCacheType);
+    m_kvCache->setCurrentIndex(kvIndex >= 0 ? kvIndex : 0);
+    m_mlock->setChecked(m_settings->mlock);
+    m_noMmap->setChecked(m_settings->noMmap);
     m_apiKey->setText(m_settings->apiKey);
     m_extraArgs->setText(m_settings->extraArgs);
     m_flashAttn->setChecked(m_settings->flashAttn);
@@ -322,6 +360,12 @@ void SettingsPage::save()
     m_settings->ctx = m_ctx->value();
     m_settings->gpuLayers = m_gpuLayers->value();
     m_settings->threads = m_threads->value();
+    m_settings->batch = m_batch->value();
+    m_settings->ubatch = m_ubatch->value();
+    m_settings->parallel = m_parallel->value();
+    m_settings->kvCacheType = m_kvCache->currentData().toString();
+    m_settings->mlock = m_mlock->isChecked();
+    m_settings->noMmap = m_noMmap->isChecked();
     m_settings->apiKey = m_apiKey->text().trimmed();
     m_settings->extraArgs = m_extraArgs->text().trimmed();
     m_settings->flashAttn = m_flashAttn->isChecked();

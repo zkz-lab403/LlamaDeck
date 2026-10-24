@@ -3,6 +3,7 @@
 #include "Icons.h"
 #include "ServerController.h"
 #include "SpeedChart.h"
+#include "SystemMonitor.h"
 #include "Theme.h"
 #include "Types.h"
 #include "Widgets.h"
@@ -12,6 +13,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QShowEvent>
@@ -19,11 +21,57 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+class ResourceMeter : public QWidget {
+public:
+    ResourceMeter(const QString &title, const QColor &accent, QWidget *parent = nullptr)
+        : QWidget(parent)
+    {
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(5);
+
+        auto *row = new QHBoxLayout();
+        row->setSpacing(6);
+        row->addWidget(makeLabel(title, QStringLiteral("FieldLabel"), this));
+        row->addStretch();
+        m_value = makeLabel(QStringLiteral("—"), QStringLiteral("MeterValue"), this);
+        row->addWidget(m_value);
+        layout->addLayout(row);
+
+        m_bar = new QProgressBar(this);
+        m_bar->setObjectName(QStringLiteral("MeterBar"));
+        m_bar->setRange(0, 100);
+        m_bar->setValue(0);
+        m_bar->setTextVisible(false);
+        m_bar->setFixedHeight(6);
+        m_bar->setStyleSheet(
+            QStringLiteral("QProgressBar#MeterBar{background-color:#1A2330;border:none;"
+                           "border-radius:3px;}"
+                           "QProgressBar#MeterBar::chunk{background-color:%1;border-radius:3px;}")
+                .arg(accent.name()));
+        layout->addWidget(m_bar);
+    }
+
+    void setValue(double percent, const QString &text)
+    {
+        m_bar->setValue(qBound(0, int(qRound(percent)), 100));
+        m_value->setText(text);
+    }
+
+private:
+    QLabel *m_value = nullptr;
+    QProgressBar *m_bar = nullptr;
+};
+
 MonitorPage::MonitorPage(ServerController *controller, QWidget *parent)
     : QWidget(parent)
     , m_controller(controller)
 {
     buildUi();
+
+    m_system = new SystemMonitor(this);
+    connect(m_system, &SystemMonitor::sampled, this, &MonitorPage::updateResources);
+    m_system->start(2000);
 
     m_sampleTimer = new QTimer(this);
     m_sampleTimer->setInterval(2000);
@@ -93,6 +141,40 @@ void MonitorPage::buildUi()
     statsRow->addWidget(m_promptCard, 1);
     statsRow->addWidget(m_uptimeCard, 1);
     layout->addLayout(statsRow);
+
+    auto *resourceCard = makeCard(this);
+    resourceCard->setMinimumHeight(106);
+    auto *resourceLayout = new QVBoxLayout(resourceCard);
+    resourceLayout->setContentsMargins(18, 12, 18, 12);
+    resourceLayout->setSpacing(9);
+
+    auto *resourceHeader = new QHBoxLayout();
+    auto *resourceTitleBox = new QVBoxLayout();
+    resourceTitleBox->setSpacing(1);
+    resourceTitleBox->addWidget(makeLabel(QStringLiteral("系统资源"), QStringLiteral("SectionTitle"),
+                                          resourceCard));
+    m_resourceHint = makeLabel(QStringLiteral("CPU · 内存 · GPU 实时占用"),
+                               QStringLiteral("Hint"), resourceCard);
+    resourceTitleBox->addWidget(m_resourceHint);
+    resourceHeader->addLayout(resourceTitleBox);
+    resourceHeader->addStretch();
+    auto *refreshBadge = makeLabel(QStringLiteral("2 秒刷新"), QStringLiteral("Badge"), resourceCard);
+    refreshBadge->setProperty("variant", QStringLiteral("muted"));
+    resourceHeader->addWidget(refreshBadge, 0, Qt::AlignTop);
+    resourceLayout->addLayout(resourceHeader);
+
+    auto *meters = new QHBoxLayout();
+    meters->setSpacing(22);
+    m_cpuMeter = new ResourceMeter(QStringLiteral("CPU"), Theme::Accent, resourceCard);
+    m_memMeter = new ResourceMeter(QStringLiteral("内存"), Theme::Info, resourceCard);
+    m_gpuMeter = new ResourceMeter(QStringLiteral("GPU"), Theme::Success, resourceCard);
+    m_vramMeter = new ResourceMeter(QStringLiteral("显存"), Theme::Warning, resourceCard);
+    meters->addWidget(m_cpuMeter, 1);
+    meters->addWidget(m_memMeter, 1);
+    meters->addWidget(m_gpuMeter, 1);
+    meters->addWidget(m_vramMeter, 1);
+    resourceLayout->addLayout(meters);
+    layout->addWidget(resourceCard);
 
     auto *chartCard = makeCard(this);
     chartCard->setMinimumHeight(286);
@@ -185,6 +267,40 @@ void MonitorPage::showEvent(QShowEvent *event)
     updateState();
     updateStats();
     updateUptime();
+}
+
+void MonitorPage::updateResources(const SystemSample &sample)
+{
+    m_cpuMeter->setValue(sample.cpuPercent,
+                         QStringLiteral("%1%").arg(sample.cpuPercent, 0, 'f', 0));
+
+    const double memPercent = sample.memTotalMb > 0.0
+        ? sample.memUsedMb * 100.0 / sample.memTotalMb : 0.0;
+    m_memMeter->setValue(memPercent,
+                         QStringLiteral("%1 / %2 GB")
+                             .arg(sample.memUsedMb / 1024.0, 0, 'f', 1)
+                             .arg(sample.memTotalMb / 1024.0, 0, 'f', 1));
+
+    if (sample.gpuAvailable) {
+        QString gpuText = QStringLiteral("%1%").arg(sample.gpuPercent, 0, 'f', 0);
+        if (sample.gpuTempC >= 0)
+            gpuText += QStringLiteral(" · %1°C").arg(sample.gpuTempC);
+        m_gpuMeter->setValue(sample.gpuPercent, gpuText);
+
+        const double vramPercent = sample.vramTotalMb > 0.0
+            ? sample.vramUsedMb * 100.0 / sample.vramTotalMb : 0.0;
+        m_vramMeter->setValue(vramPercent,
+                              QStringLiteral("%1 / %2 GB")
+                                  .arg(sample.vramUsedMb / 1024.0, 0, 'f', 1)
+                                  .arg(sample.vramTotalMb / 1024.0, 0, 'f', 1));
+    } else {
+        m_gpuMeter->setValue(0.0, QStringLiteral("不可用"));
+        m_vramMeter->setValue(0.0, QStringLiteral("不可用"));
+    }
+
+    m_resourceHint->setText(sample.gpuAvailable && !sample.gpuName.isEmpty()
+                                ? QStringLiteral("%1 · 每 2 秒刷新").arg(sample.gpuName)
+                                : QStringLiteral("CPU · 内存 · GPU 实时占用"));
 }
 
 void MonitorPage::updateState()
