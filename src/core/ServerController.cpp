@@ -85,7 +85,7 @@ QStringList ServerController::buildArguments(const LaunchOptions &options)
     if (options.threads > 0)
         args << QStringLiteral("-t") << QString::number(options.threads);
     if (options.flashAttn)
-        args << QStringLiteral("-fa");
+        args << QStringLiteral("-fa") << QStringLiteral("on");
     if (options.jinja)
         args << QStringLiteral("--jinja");
     if (!options.apiKey.isEmpty())

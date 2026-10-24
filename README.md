@@ -40,7 +40,7 @@ GUI 会根据当前配置拼出类似命令，并显示在模型页卡片底部�
 
 ```bash
 llama-server.exe --model "D:/models/Qwen3-4B-Q4_K_M.gguf" --host 127.0.0.1 --port 8080 \
-  -c 4096 -ngl 99 -t 0 -fa --jinja
+  -c 4096 -ngl 99 -t 0 -fa on --jinja
 ```
 
 规则：
@@ -51,7 +51,7 @@ llama-server.exe --model "D:/models/Qwen3-4B-Q4_K_M.gguf" --host 127.0.0.1 --por
 | `-c` | 上下文长度 |
 | `-ngl` | GPU 卸载层数（`-1` 表示不传，即纯 CPU） |
 | `-t` | 线程数（`0` 表示由 llama.cpp 自动决定，不传参） |
-| `-fa` | 开启 Flash Attention |
+| `-fa on` | 开启 Flash Attention（新版 llama.cpp 的 `-fa` 需要取值 `on/off/auto`） |
 | `--jinja` | 使用模型自带聊天模板（OpenAI 接口必须） |
 | `--api-key` | 设置了 API Key 时追加 |
 | 额外参数 | 设置页/模型页填写的自定义参数，原样追加 |
