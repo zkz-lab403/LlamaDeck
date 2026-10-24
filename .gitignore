@@ -1,0 +1,30 @@
+# Build output
+build/
+build-*/
+cmake-build-*/
+out/
+CMakeCache.txt
+CMakeFiles/
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.a
+*.dll.a
+compile_commands.json
+
+# IDE
+.vscode/
+.idea/
+*.user
+*.user.*
+
+# Local models and runtime config
+/models/
+*.gguf
+
+# OS
+Thumbs.db
+.DS_Store
