@@ -3,11 +3,11 @@
 #include "AppSettings.h"
 #include "Icons.h"
 #include "ServerController.h"
+#include "SpeedChart.h"
 #include "Theme.h"
 #include "Types.h"
 #include "Widgets.h"
 
-#include <QClipboard>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QFrame>
@@ -125,6 +125,10 @@ ApiPage::ApiPage(AppSettings *settings, ServerController *controller, QWidget *p
     , m_controller(controller)
     , m_network(new QNetworkAccessManager(this))
 {
+    m_speedTimer = new QTimer(this);
+    m_speedTimer->setInterval(400);
+    connect(m_speedTimer, &QTimer::timeout, this, &ApiPage::updateStreamStats);
+
     buildUi();
 
     connect(m_controller, &ServerController::stateChanged, this, [this](ServerState state) {
@@ -135,6 +139,7 @@ ApiPage::ApiPage(AppSettings *settings, ServerController *controller, QWidget *p
     connect(m_settings, &AppSettings::changed, this, &ApiPage::updateStatus);
 
     resetChat();
+    resetStreamStats();
     updateStatus();
 }
 
@@ -148,134 +153,11 @@ void ApiPage::buildUi()
     splitter->setChildrenCollapsible(false);
     splitter->setHandleWidth(12);
 
-    auto *scroll = new QScrollArea(splitter);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setMinimumWidth(430);
-
-    auto *leftBody = new QWidget(scroll);
-    auto *leftLayout = new QVBoxLayout(leftBody);
-    leftLayout->setContentsMargins(0, 0, 8, 0);
-    leftLayout->setSpacing(14);
-
-    auto *serverCard = makeCard(leftBody);
-    auto *serverLayout = new QVBoxLayout(serverCard);
-    serverLayout->setContentsMargins(18, 16, 18, 16);
-    serverLayout->setSpacing(4);
-
-    auto *serverHeader = new QHBoxLayout();
-    auto *serverTitleBox = new QVBoxLayout();
-    serverTitleBox->setSpacing(1);
-    serverTitleBox->addWidget(makeLabel(QStringLiteral("推理服务 API"),
-                                        QStringLiteral("SectionTitle"), serverCard));
-    serverTitleBox->addWidget(makeLabel(QStringLiteral("llama-server 原生接口 · OpenAI 兼容"),
-                                        QStringLiteral("Hint"), serverCard));
-    serverHeader->addLayout(serverTitleBox);
-    serverHeader->addStretch();
-    m_serverBaseLabel = makeLabel(QStringLiteral("http://127.0.0.1:8080"),
-                                   QStringLiteral("Endpoint"), serverCard);
-    serverHeader->addWidget(m_serverBaseLabel);
-    serverLayout->addLayout(serverHeader);
-    serverLayout->addSpacing(6);
-
-    addEndpointRow(serverLayout, QStringLiteral("POST"), QStringLiteral("/v1/chat/completions"),
-                   QStringLiteral("对话补全，支持 SSE 流式输出"), false);
-    serverLayout->addWidget(makeDivider(serverCard));
-    addEndpointRow(serverLayout, QStringLiteral("POST"), QStringLiteral("/v1/completions"),
-                   QStringLiteral("原始文本补全"), false);
-    serverLayout->addWidget(makeDivider(serverCard));
-    addEndpointRow(serverLayout, QStringLiteral("POST"), QStringLiteral("/v1/embeddings"),
-                   QStringLiteral("文本向量嵌入"), false);
-    serverLayout->addWidget(makeDivider(serverCard));
-    addEndpointRow(serverLayout, QStringLiteral("GET"), QStringLiteral("/health"),
-                   QStringLiteral("健康检查，加载完成时返回 ok"), false);
-    serverLayout->addWidget(makeDivider(serverCard));
-    addEndpointRow(serverLayout, QStringLiteral("GET"), QStringLiteral("/props"),
-                   QStringLiteral("当前模型与默认生成参数"), false);
-    serverLayout->addWidget(makeDivider(serverCard));
-    addEndpointRow(serverLayout, QStringLiteral("GET"), QStringLiteral("/metrics"),
-                   QStringLiteral("Prometheus 格式的吞吐指标"), false);
-    serverLayout->addWidget(makeDivider(serverCard));
-    addEndpointRow(serverLayout, QStringLiteral("GET"), QStringLiteral("/slots"),
-                   QStringLiteral("槽位与当前请求状态"), false);
-
-    serverLayout->addSpacing(12);
-    auto *curlHeader = new QHBoxLayout();
-    curlHeader->addWidget(makeLabel(QStringLiteral("调用示例（bash / curl）"),
-                                    QStringLiteral("FieldLabel"), serverCard));
-    curlHeader->addStretch();
-    auto *curlCopy = new QPushButton(Icons::icon(Icons::Glyph::Copy, Theme::Muted, 14),
-                                      QString(), serverCard);
-    curlCopy->setObjectName(QStringLiteral("IconButton"));
-    curlCopy->setFixedSize(28, 24);
-    curlCopy->setCursor(Qt::PointingHandCursor);
-    curlCopy->setToolTip(QStringLiteral("复制示例命令"));
-    connect(curlCopy, &QPushButton::clicked, this, [this]() {
-        copyText(m_curlView->toPlainText(), QStringLiteral("调用示例"));
-    });
-    curlHeader->addWidget(curlCopy);
-    serverLayout->addLayout(curlHeader);
-
-    m_curlView = new QPlainTextEdit(serverCard);
-    m_curlView->setObjectName(QStringLiteral("CommandView"));
-    m_curlView->setReadOnly(true);
-    m_curlView->setFixedHeight(120);
-    m_curlView->setWordWrapMode(QTextOption::WrapAnywhere);
-    serverLayout->addWidget(m_curlView);
-
-    leftLayout->addWidget(serverCard);
-
-    auto *controlCard = makeCard(leftBody);
-    auto *controlLayout = new QVBoxLayout(controlCard);
-    controlLayout->setContentsMargins(18, 16, 18, 16);
-    controlLayout->setSpacing(4);
-
-    auto *controlHeader = new QHBoxLayout();
-    auto *controlTitleBox = new QVBoxLayout();
-    controlTitleBox->setSpacing(1);
-    controlTitleBox->addWidget(makeLabel(QStringLiteral("GUI 控制 API"),
-                                         QStringLiteral("SectionTitle"), controlCard));
-    controlTitleBox->addWidget(makeLabel(QStringLiteral("由 LlamaDeck 提供 · 仅监听本机"),
-                                         QStringLiteral("Hint"), controlCard));
-    controlHeader->addLayout(controlTitleBox);
-    controlHeader->addStretch();
-    m_controlBaseLabel = makeLabel(QStringLiteral("http://127.0.0.1:8745"),
-                                    QStringLiteral("Endpoint"), controlCard);
-    controlHeader->addWidget(m_controlBaseLabel);
-    controlLayout->addLayout(controlHeader);
-    controlLayout->addSpacing(6);
-
-    addEndpointRow(controlLayout, QStringLiteral("GET"), QStringLiteral("/api/status"),
-                   QStringLiteral("查询状态、模型与实时速度"), true);
-    controlLayout->addWidget(makeDivider(controlCard));
-    addEndpointRow(controlLayout, QStringLiteral("GET"), QStringLiteral("/api/models"),
-                   QStringLiteral("列出模型目录中的 GGUF 文件"), true);
-    controlLayout->addWidget(makeDivider(controlCard));
-    addEndpointRow(controlLayout, QStringLiteral("POST"), QStringLiteral("/api/launch"),
-                   QStringLiteral("启动模型：{\"model\":\"文件名或完整路径\"}"), true);
-    controlLayout->addWidget(makeDivider(controlCard));
-    addEndpointRow(controlLayout, QStringLiteral("POST"), QStringLiteral("/api/stop"),
-                   QStringLiteral("停止当前推理服务"), true);
-    controlLayout->addWidget(makeDivider(controlCard));
-    addEndpointRow(controlLayout, QStringLiteral("GET"), QStringLiteral("/api/history"),
-                   QStringLiteral("返回启动历史记录"), true);
-
-    controlLayout->addSpacing(8);
-    auto *controlHint = makeLabel(QStringLiteral("控制 API 端口可在设置中修改，修改后即时生效。"),
-                                   QStringLiteral("Hint"), controlCard);
-    controlHint->setWordWrap(true);
-    controlLayout->addWidget(controlHint);
-
-    leftLayout->addWidget(controlCard);
-    leftLayout->addStretch();
-    scroll->setWidget(leftBody);
-
-    splitter->addWidget(scroll);
     splitter->addWidget(buildChatCard());
-    splitter->setStretchFactor(0, 0);
-    splitter->setStretchFactor(1, 1);
-    splitter->setSizes({520, 760});
+    splitter->addWidget(buildSpeedPanel());
+    splitter->setStretchFactor(0, 1);
+    splitter->setStretchFactor(1, 0);
+    splitter->setSizes({820, 268});
 
     layout->addWidget(splitter, 1);
 }
@@ -283,7 +165,7 @@ void ApiPage::buildUi()
 QWidget *ApiPage::buildChatCard()
 {
     auto *card = makeCard(this);
-    card->setMinimumWidth(460);
+    card->setMinimumWidth(500);
     auto *layout = new QVBoxLayout(card);
     layout->setContentsMargins(18, 16, 18, 16);
     layout->setSpacing(8);
@@ -341,6 +223,16 @@ QWidget *ApiPage::buildChatCard()
     m_input->installEventFilter(this);
     inputRow->addWidget(m_input, 1);
 
+    m_stopButton = new QPushButton(Icons::icon(Icons::Glyph::Stop, Qt::white, 14),
+                                    QStringLiteral("停止"), card);
+    m_stopButton->setObjectName(QStringLiteral("Danger"));
+    m_stopButton->setMinimumSize(88, 42);
+    m_stopButton->setCursor(Qt::PointingHandCursor);
+    m_stopButton->setToolTip(QStringLiteral("停止当前回答"));
+    m_stopButton->hide();
+    connect(m_stopButton, &QPushButton::clicked, this, &ApiPage::stopStreaming);
+    inputRow->addWidget(m_stopButton, 0, Qt::AlignBottom);
+
     m_sendButton = new QPushButton(Icons::icon(Icons::Glyph::Send, Qt::white, 15),
                                     QStringLiteral("发送"), card);
     m_sendButton->setObjectName(QStringLiteral("Primary"));
@@ -358,44 +250,69 @@ QWidget *ApiPage::buildChatCard()
     return card;
 }
 
-void ApiPage::addEndpointRow(QVBoxLayout *layout, const QString &method, const QString &path,
-                             const QString &description, bool controlApi)
+QWidget *ApiPage::buildSpeedPanel()
 {
-    QWidget *row = new QWidget(this);
-    auto *rowLayout = new QHBoxLayout(row);
-    rowLayout->setContentsMargins(2, 7, 2, 7);
-    rowLayout->setSpacing(10);
+    auto *card = makeCard(this);
+    card->setMinimumWidth(240);
+    card->setMaximumWidth(340);
+    auto *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(10);
 
-    auto *methodLabel = makeLabel(method, QString(), row);
-    methodLabel->setObjectName(QStringLiteral("MethodPill"));
-    methodLabel->setProperty("method", method);
-    methodLabel->setAlignment(Qt::AlignCenter);
-    methodLabel->setFixedWidth(48);
-    rowLayout->addWidget(methodLabel, 0, Qt::AlignTop);
+    auto *header = new QHBoxLayout();
+    auto *titleBox = new QVBoxLayout();
+    titleBox->setSpacing(1);
+    titleBox->addWidget(makeLabel(QStringLiteral("实时速度"), QStringLiteral("SectionTitle"), card));
+    titleBox->addWidget(makeLabel(QStringLiteral("本轮流式输出"), QStringLiteral("Hint"), card));
+    header->addLayout(titleBox);
+    header->addStretch();
 
-    auto *textLayout = new QVBoxLayout();
-    textLayout->setSpacing(1);
-    auto *pathLabel = makeLabel(path, QStringLiteral("EndpointPath"), row);
-    pathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    textLayout->addWidget(pathLabel);
-    auto *descLabel = makeLabel(description, QStringLiteral("Hint"), row);
-    descLabel->setWordWrap(true);
-    textLayout->addWidget(descLabel);
-    rowLayout->addLayout(textLayout, 1);
+    m_speedBadge = makeLabel(QStringLiteral("空闲"), QStringLiteral("Badge"), card);
+    m_speedBadge->setProperty("variant", QStringLiteral("muted"));
+    m_speedBadge->setAlignment(Qt::AlignCenter);
+    header->addWidget(m_speedBadge);
+    layout->addLayout(header);
 
-    auto *copyButton = new QPushButton(Icons::icon(Icons::Glyph::Copy, Theme::Muted, 14),
-                                        QString(), row);
-    copyButton->setObjectName(QStringLiteral("IconButton"));
-    copyButton->setFixedSize(28, 26);
-    copyButton->setCursor(Qt::PointingHandCursor);
-    copyButton->setToolTip(QStringLiteral("复制完整 URL"));
-    connect(copyButton, &QPushButton::clicked, this, [this, path, controlApi]() {
-        const QString base = controlApi ? controlBaseUrl() : serverBaseUrl();
-        copyText(base + path, QStringLiteral("接口地址"));
-    });
-    rowLayout->addWidget(copyButton, 0, Qt::AlignTop);
+    layout->addWidget(makeDivider(card));
 
-    layout->addWidget(row);
+    m_speedCard = new StatCard(QStringLiteral("生成速度"), card);
+    m_speedCard->setMinimumHeight(96);
+    m_speedCard->setAccent(Theme::Accent);
+    m_speedCard->setValue(QStringLiteral("—"));
+    m_speedCard->setCaption(QStringLiteral("发送请求后实时统计"));
+    layout->addWidget(m_speedCard);
+
+    m_latencyCard = new StatCard(QStringLiteral("首字延迟"), card);
+    m_latencyCard->setMinimumHeight(88);
+    m_latencyCard->setAccent(Theme::Info);
+    m_latencyCard->setValue(QStringLiteral("—"), QStringLiteral("ms"));
+    m_latencyCard->setCaption(QStringLiteral("从发送到首个分片"));
+    layout->addWidget(m_latencyCard);
+
+    m_tokenCard = new StatCard(QStringLiteral("已生成"), card);
+    m_tokenCard->setMinimumHeight(88);
+    m_tokenCard->setAccent(Theme::Success);
+    m_tokenCard->setValue(QStringLiteral("0"), QStringLiteral("tokens"));
+    m_tokenCard->setCaption(QStringLiteral("本轮已接收分片数"));
+    layout->addWidget(m_tokenCard);
+
+    auto *chartHeader = new QHBoxLayout();
+    chartHeader->addWidget(makeLabel(QStringLiteral("速度曲线"), QStringLiteral("FieldLabel"), card));
+    chartHeader->addStretch();
+    auto *chartHint = makeLabel(QStringLiteral("每 0.4 秒"), QStringLiteral("Hint"), card);
+    chartHeader->addWidget(chartHint);
+    layout->addLayout(chartHeader);
+
+    m_streamChart = new SpeedChart(card);
+    m_streamChart->setMinimumHeight(150);
+    m_streamChart->setCapacity(60);
+    layout->addWidget(m_streamChart, 1);
+
+    auto *hint = makeLabel(QStringLiteral("按 SSE 流式分片统计，仅供参考"), QStringLiteral("Hint"), card);
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+
+    return card;
 }
 
 bool ApiPage::eventFilter(QObject *watched, QEvent *event)
@@ -419,11 +336,6 @@ QString ApiPage::serverBaseUrl() const
         || state == ServerState::Stopping)
         port = m_controller->options().port;
     return QStringLiteral("http://127.0.0.1:%1").arg(port);
-}
-
-QString ApiPage::controlBaseUrl() const
-{
-    return QStringLiteral("http://127.0.0.1:%1").arg(m_settings->controlApiPort);
 }
 
 void ApiPage::updateStatus()
@@ -472,17 +384,10 @@ void ApiPage::updateStatus()
         m_statusLabel->setText(QStringLiteral("服务未运行 · 启动后即可对话"));
     }
 
-    m_serverBaseLabel->setText(serverBaseUrl());
-    m_controlBaseLabel->setText(controlBaseUrl());
-
     m_sendButton->setEnabled(running && !m_sending);
     m_input->setEnabled(running && !m_sending);
-
-    m_curlView->setPlainText(
-        QStringLiteral("curl %1/v1/chat/completions \\\n"
-                       "  -H \"Content-Type: application/json\" \\\n"
-                       "  -d '{\"model\":\"default\",\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}],\"stream\":false}'")
-            .arg(serverBaseUrl()));
+    m_stopButton->setVisible(m_sending);
+    m_stopButton->setEnabled(m_sending);
 }
 
 void ApiPage::sendMessage()
@@ -514,6 +419,15 @@ void ApiPage::sendMessage()
     m_sending = true;
     m_sendButton->setEnabled(false);
     m_input->setEnabled(false);
+    m_stopButton->setVisible(true);
+    m_stopButton->setEnabled(true);
+
+    m_speedBadge->setText(QStringLiteral("生成中"));
+    m_speedBadge->setProperty("variant", QStringLiteral("accent"));
+    repolish(m_speedBadge);
+    resetStreamStats();
+    m_streamClock.start();
+    m_speedTimer->start();
 
     QNetworkRequest request(QUrl(serverBaseUrl() + QStringLiteral("/v1/chat/completions")));
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
@@ -562,6 +476,20 @@ void ApiPage::sendMessage()
         reply->deleteLater();
         finishStreaming(failed, errorText.isEmpty() ? QStringLiteral("服务未返回内容。") : errorText);
     });
+}
+
+void ApiPage::stopStreaming()
+{
+    if (!m_sending || !m_reply)
+        return;
+
+    QNetworkReply *reply = m_reply;
+    m_reply = nullptr;
+    reply->disconnect(this);
+    reply->abort();
+    reply->deleteLater();
+
+    finishStreaming(false, QString(), true);
 }
 
 void ApiPage::processStream(QNetworkReply *reply)
@@ -618,20 +546,100 @@ void ApiPage::processStream(QNetworkReply *reply)
             continue;
 
         m_assistantText += piece;
+        ++m_streamTokens;
+        if (m_firstTokenMs < 0) {
+            m_firstTokenMs = m_streamClock.elapsed();
+            m_latencyCard->setValue(QString::number(m_firstTokenMs), QStringLiteral("ms"));
+        }
+        m_tokenCard->setValue(QString::number(m_streamTokens), QStringLiteral("tokens"));
+
         if (m_streamingBubble)
             m_streamingBubble->setText(m_assistantText);
         scrollChatToBottom();
     }
 }
 
-void ApiPage::finishStreaming(bool failed, const QString &errorText)
+void ApiPage::updateStreamStats()
+{
+    if (!m_sending || !m_streamClock.isValid())
+        return;
+
+    const qint64 now = m_streamClock.elapsed();
+    const qint64 dt = now - m_lastSampleMs;
+    if (dt <= 0)
+        return;
+
+    const int delta = m_streamTokens - m_sampledTokens;
+    m_streamChart->addSample(delta * 1000.0 / double(dt));
+    m_sampledTokens = m_streamTokens;
+    m_lastSampleMs = now;
+
+    if (m_firstTokenMs >= 0) {
+        const double seconds = qMax<qint64>(1, now - m_firstTokenMs) / 1000.0;
+        m_speedCard->setValue(QString::number(m_streamTokens / seconds, 'f', 1),
+                              QStringLiteral("tokens/s"));
+        m_speedCard->setCaption(QStringLiteral("平均速度 · 已用时 %1 s")
+                                    .arg(seconds, 0, 'f', 1));
+    }
+}
+
+void ApiPage::resetStreamStats()
+{
+    if (m_speedTimer)
+        m_speedTimer->stop();
+    m_streamClock.invalidate();
+    m_streamTokens = 0;
+    m_sampledTokens = 0;
+    m_firstTokenMs = -1;
+    m_lastSampleMs = 0;
+
+    if (m_speedCard) {
+        m_speedCard->setValue(QStringLiteral("—"));
+        m_speedCard->setCaption(QStringLiteral("发送请求后实时统计"));
+    }
+    if (m_latencyCard)
+        m_latencyCard->setValue(QStringLiteral("—"), QStringLiteral("ms"));
+    if (m_tokenCard)
+        m_tokenCard->setValue(QStringLiteral("0"), QStringLiteral("tokens"));
+    if (m_streamChart)
+        m_streamChart->clear();
+}
+
+void ApiPage::finishStreaming(bool failed, const QString &errorText, bool stopped)
 {
     if (!m_sending && !m_streamingBubble)
         return;
 
     m_sending = false;
+    m_speedTimer->stop();
 
-    if (failed) {
+    if (m_firstTokenMs >= 0 && m_streamClock.isValid()) {
+        const double seconds = qMax<qint64>(1, m_streamClock.elapsed() - m_firstTokenMs) / 1000.0;
+        m_speedCard->setValue(QString::number(m_streamTokens / seconds, 'f', 1),
+                              QStringLiteral("tokens/s"));
+        m_speedCard->setCaption(QStringLiteral("本轮平均 · 共 %1 tokens").arg(m_streamTokens));
+    }
+
+    if (stopped) {
+        m_speedBadge->setText(QStringLiteral("已停止"));
+        m_speedBadge->setProperty("variant", QStringLiteral("warning"));
+    } else {
+        m_speedBadge->setText(QStringLiteral("空闲"));
+        m_speedBadge->setProperty("variant", QStringLiteral("muted"));
+    }
+    repolish(m_speedBadge);
+
+    if (stopped) {
+        if (m_streamingBubble) {
+            if (m_assistantText.trimmed().isEmpty()) {
+                m_streamingBubble->setText(QStringLiteral("已停止生成。"));
+            } else {
+                m_streamingBubble->setText(m_assistantText + QStringLiteral("\n\n[已停止生成]"));
+                m_messages.append(QJsonObject{{QStringLiteral("role"), QStringLiteral("assistant")},
+                                              {QStringLiteral("content"), m_assistantText}});
+            }
+        }
+    } else if (failed) {
         const QString message = errorText.isEmpty() ? QStringLiteral("请求失败。") : errorText;
         if (m_streamingBubble) {
             if (m_assistantText.trimmed().isEmpty())
@@ -700,13 +708,12 @@ void ApiPage::resetChat()
         delete item;
     }
 
+    resetStreamStats();
+    m_speedBadge->setText(QStringLiteral("空闲"));
+    m_speedBadge->setProperty("variant", QStringLiteral("muted"));
+    repolish(m_speedBadge);
+
     appendBubble(QStringLiteral("启动推理服务后，即可在这里测试 OpenAI 兼容的对话接口。"),
                  false);
     updateStatus();
-}
-
-void ApiPage::copyText(const QString &text, const QString &what)
-{
-    QGuiApplication::clipboard()->setText(text);
-    emit toastRequested(QStringLiteral("%1已复制到剪贴板。").arg(what));
 }

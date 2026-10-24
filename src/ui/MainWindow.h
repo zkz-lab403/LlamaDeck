@@ -14,6 +14,7 @@ class ModelPage;
 class MonitorPage;
 class HistoryPage;
 class ApiPage;
+class ApiDocsPage;
 class SettingsPage;
 class QButtonGroup;
 class QGraphicsOpacityEffect;
@@ -74,6 +75,7 @@ private:
     MonitorPage *m_monitorPage = nullptr;
     HistoryPage *m_historyPage = nullptr;
     ApiPage *m_apiPage = nullptr;
+    ApiDocsPage *m_apiDocsPage = nullptr;
     SettingsPage *m_settingsPage = nullptr;
 
     QLabel *m_toast = nullptr;

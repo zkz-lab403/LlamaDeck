@@ -11,7 +11,8 @@
 | 模型管理 | 递归扫描模型目录下的 `.gguf`，解析元数据（架构、参数量、上下文长度、量化类型），支持搜索、文件大小展示与一键启动 |
 | 运行监控 | 健康检查、实时 token/s 速度曲线、峰值/平均速度、已生成 token 数、请求数、运行时长、实时日志 |
 | 历史记录 | 每次启动自动落盘：模型、状态、时长、平均/峰值速度、token 数、完整命令，支持复制、重放、导出 CSV |
-| API 接口 | 展示 `llama-server` 与本地控制 API 的端点，内置流式聊天测试（SSE），可直接在 GUI 里验证模型 |
+| API 接口 | 内置流式聊天测试（SSE），支持中途停止回答，右侧实时显示速度、首字延迟与已生成 token 数 |
+| API 文档 | 汇总 `llama-server` 与本地控制 API 的端点列表，附 curl 调用示例 |
 | 设置 | 服务路径、模型目录、默认参数、启动行为、控制 API 开关与端口 |
 | 命令生成 | 参数改动后实时生成完整启动命令，可一键复制到终端复用 |
 
@@ -141,7 +142,8 @@ windeployqt --release --no-translations --compiler-runtime build/LlamaDeck.exe
 │     ├─ ModelPage.*       # 模型管理
 │     ├─ MonitorPage.*     # 运行监控
 │     ├─ HistoryPage.*     # 历史记录
-│     ├─ ApiPage.*         # API 文档与聊天测试
+│     ├─ ApiPage.*         # 流式聊天测试、停止生成与实时速度
+│     ├─ ApiDocsPage.*     # 推理服务与控制 API 端点说明
 │     ├─ SettingsPage.*    # 设置
 │     └─ MainWindow.*      # 侧边栏、页面调度、自动启动
 └─ dist/LlamaDeck          # 打包好的 Windows 运行目录（不含 llama-server）

@@ -38,6 +38,8 @@ set(SOURCES
     src/ui/HistoryPage.cpp
     src/ui/ApiPage.h
     src/ui/ApiPage.cpp
+    src/ui/ApiDocsPage.h
+    src/ui/ApiDocsPage.cpp
     src/ui/SettingsPage.h
     src/ui/SettingsPage.cpp
     src/ui/MainWindow.h

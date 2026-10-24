@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "ApiDocsPage.h"
 #include "ApiPage.h"
 #include "AppSettings.h"
 #include "ControlApiServer.h"
@@ -50,6 +51,7 @@ const char *const kPageTitles[] = {
     "运行监控",
     "历史记录",
     "API 接口",
+    "API 文档",
     "设置"
 };
 
@@ -57,7 +59,8 @@ const char *const kPageSubtitles[] = {
     "选择 GGUF 模型，一键启动本地推理服务",
     "实时速度、吞吐曲线与服务日志",
     "每次启动的命令、时长与性能统计",
-    "兼容 OpenAI 的推理接口，以及本机控制 API",
+    "兼容 OpenAI 的推理接口调试与实时速度",
+    "推理服务与控制 API 的端点说明",
     "路径、默认参数与启动行为"
 };
 
@@ -135,11 +138,13 @@ void MainWindow::buildUi()
     m_monitorPage = new MonitorPage(m_controller, m_pages);
     m_historyPage = new HistoryPage(m_history, m_pages);
     m_apiPage = new ApiPage(m_settings, m_controller, m_pages);
+    m_apiDocsPage = new ApiDocsPage(m_settings, m_controller, m_pages);
     m_settingsPage = new SettingsPage(m_settings, m_pages);
     m_pages->addWidget(m_modelsPage);
     m_pages->addWidget(m_monitorPage);
     m_pages->addWidget(m_historyPage);
     m_pages->addWidget(m_apiPage);
+    m_pages->addWidget(m_apiDocsPage);
     m_pages->addWidget(m_settingsPage);
     bodyLayout->addWidget(m_pages, 1);
 
@@ -212,6 +217,7 @@ QWidget *MainWindow::buildSidebar()
         {Icons::Glyph::Monitor, QStringLiteral("运行监控")},
         {Icons::Glyph::History, QStringLiteral("历史记录")},
         {Icons::Glyph::Api, QStringLiteral("API 接口")},
+        {Icons::Glyph::Globe, QStringLiteral("API 文档")},
         {Icons::Glyph::Settings, QStringLiteral("设置")}
     };
 
@@ -313,7 +319,7 @@ void MainWindow::connectSignals()
 {
     connect(m_modelsPage, &ModelPage::startRequested, this, [this]() { startSelectedModel(); });
     connect(m_modelsPage, &ModelPage::stopRequested, m_controller, &ServerController::stop);
-    connect(m_modelsPage, &ModelPage::openSettingsRequested, this, [this]() { navigate(4); });
+    connect(m_modelsPage, &ModelPage::openSettingsRequested, this, [this]() { navigate(5); });
     connect(m_modelsPage, &ModelPage::toastRequested, this, [this](const QString &message) {
         showToast(message);
     });
@@ -328,6 +334,10 @@ void MainWindow::connectSignals()
     });
 
     connect(m_apiPage, &ApiPage::toastRequested, this, [this](const QString &message) {
+        showToast(message);
+    });
+
+    connect(m_apiDocsPage, &ApiDocsPage::toastRequested, this, [this](const QString &message) {
         showToast(message);
     });
 
@@ -440,7 +450,7 @@ void MainWindow::startSelectedModel(bool quiet)
         || !QFileInfo::exists(m_settings->llamaServerPath)) {
         showToast(QStringLiteral("未找到 llama-server，请先在设置中指定路径。"), true);
         if (!quiet)
-            navigate(4);
+            navigate(5);
         return;
     }
 
