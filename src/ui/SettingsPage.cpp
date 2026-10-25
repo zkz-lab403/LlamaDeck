@@ -81,7 +81,7 @@ SettingsPage::SettingsPage(AppSettings *settings, QWidget *parent)
 void SettingsPage::buildUi()
 {
     auto *outer = new QVBoxLayout(this);
-    outer->setContentsMargins(28, 8, 28, 22);
+    outer->setContentsMargins(32, 10, 32, 24);
     outer->setSpacing(14);
 
     auto *scroll = new QScrollArea(this);

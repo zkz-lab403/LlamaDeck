@@ -9,10 +9,12 @@
 class AppSettings;
 class ServerController;
 class HistoryStore;
+class KnowledgeStore;
 class ControlApiServer;
 class ModelPage;
 class MonitorPage;
 class HistoryPage;
+class KnowledgePage;
 class ApiPage;
 class ApiDocsPage;
 class SettingsPage;
@@ -56,6 +58,7 @@ private:
     AppSettings *m_settings = nullptr;
     ServerController *m_controller = nullptr;
     HistoryStore *m_history = nullptr;
+    KnowledgeStore *m_knowledge = nullptr;
     ControlApiServer *m_api = nullptr;
 
     QStackedWidget *m_pages = nullptr;
@@ -74,6 +77,7 @@ private:
     ModelPage *m_modelsPage = nullptr;
     MonitorPage *m_monitorPage = nullptr;
     HistoryPage *m_historyPage = nullptr;
+    KnowledgePage *m_knowledgePage = nullptr;
     ApiPage *m_apiPage = nullptr;
     ApiDocsPage *m_apiDocsPage = nullptr;
     SettingsPage *m_settingsPage = nullptr;

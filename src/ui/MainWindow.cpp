@@ -7,6 +7,8 @@
 #include "HistoryPage.h"
 #include "HistoryStore.h"
 #include "Icons.h"
+#include "KnowledgePage.h"
+#include "KnowledgeStore.h"
 #include "ModelPage.h"
 #include "MonitorPage.h"
 #include "ServerController.h"
@@ -50,6 +52,7 @@ const char *const kPageTitles[] = {
     "模型管理",
     "运行监控",
     "历史记录",
+    "知识库",
     "API 接口",
     "API 文档",
     "设置"
@@ -59,6 +62,7 @@ const char *const kPageSubtitles[] = {
     "选择 GGUF 模型，一键启动本地推理服务",
     "实时速度、吞吐曲线与服务日志",
     "每次启动的命令、时长与性能统计",
+    "导入本地文档，对话时自动检索相关片段",
     "兼容 OpenAI 的推理接口调试与实时速度",
     "推理服务与控制 API 的端点说明",
     "路径、默认参数与启动行为"
@@ -83,6 +87,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_settings = new AppSettings(this);
     m_controller = new ServerController(m_settings, this);
     m_history = new HistoryStore(this);
+    m_knowledge = new KnowledgeStore(m_settings, this);
     m_api = new ControlApiServer(m_controller, m_settings, m_history, this);
     m_initialModelsDir = m_settings->modelsDir;
 
@@ -137,12 +142,14 @@ void MainWindow::buildUi()
     m_modelsPage = new ModelPage(m_settings, m_controller, m_pages);
     m_monitorPage = new MonitorPage(m_controller, m_pages);
     m_historyPage = new HistoryPage(m_history, m_pages);
-    m_apiPage = new ApiPage(m_settings, m_controller, m_pages);
+    m_knowledgePage = new KnowledgePage(m_knowledge, m_pages);
+    m_apiPage = new ApiPage(m_settings, m_controller, m_knowledge, m_pages);
     m_apiDocsPage = new ApiDocsPage(m_settings, m_controller, m_pages);
     m_settingsPage = new SettingsPage(m_settings, m_pages);
     m_pages->addWidget(m_modelsPage);
     m_pages->addWidget(m_monitorPage);
     m_pages->addWidget(m_historyPage);
+    m_pages->addWidget(m_knowledgePage);
     m_pages->addWidget(m_apiPage);
     m_pages->addWidget(m_apiDocsPage);
     m_pages->addWidget(m_settingsPage);
@@ -216,6 +223,7 @@ QWidget *MainWindow::buildSidebar()
         {Icons::Glyph::Models, QStringLiteral("模型管理")},
         {Icons::Glyph::Monitor, QStringLiteral("运行监控")},
         {Icons::Glyph::History, QStringLiteral("历史记录")},
+        {Icons::Glyph::Book, QStringLiteral("知识库")},
         {Icons::Glyph::Api, QStringLiteral("API 接口")},
         {Icons::Glyph::Globe, QStringLiteral("API 文档")},
         {Icons::Glyph::Settings, QStringLiteral("设置")}
@@ -277,7 +285,7 @@ QWidget *MainWindow::buildHeader()
 {
     auto *header = new QWidget(this);
     auto *layout = new QHBoxLayout(header);
-    layout->setContentsMargins(28, 20, 28, 10);
+    layout->setContentsMargins(32, 22, 32, 12);
     layout->setSpacing(10);
 
     auto *titleBox = new QVBoxLayout();
@@ -319,7 +327,7 @@ void MainWindow::connectSignals()
 {
     connect(m_modelsPage, &ModelPage::startRequested, this, [this]() { startSelectedModel(); });
     connect(m_modelsPage, &ModelPage::stopRequested, m_controller, &ServerController::stop);
-    connect(m_modelsPage, &ModelPage::openSettingsRequested, this, [this]() { navigate(5); });
+    connect(m_modelsPage, &ModelPage::openSettingsRequested, this, [this]() { navigate(6); });
     connect(m_modelsPage, &ModelPage::toastRequested, this, [this](const QString &message) {
         showToast(message);
     });
@@ -332,6 +340,9 @@ void MainWindow::connectSignals()
     connect(m_historyPage, &HistoryPage::toastRequested, this, [this](const QString &message) {
         showToast(message);
     });
+
+    connect(m_knowledgePage, &KnowledgePage::toastRequested, this,
+            [this](const QString &message) { showToast(message); });
 
     connect(m_apiPage, &ApiPage::toastRequested, this, [this](const QString &message) {
         showToast(message);
@@ -380,7 +391,7 @@ void MainWindow::connectSignals()
 
         const int port = m_controller->options().port;
         if (m_settings->autoOpenApiTab)
-            navigate(3);
+            navigate(4);
         if (m_settings->autoOpenBrowser)
             QDesktopServices::openUrl(QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(port)));
     });
@@ -450,7 +461,7 @@ void MainWindow::startSelectedModel(bool quiet)
         || !QFileInfo::exists(m_settings->llamaServerPath)) {
         showToast(QStringLiteral("未找到 llama-server，请先在设置中指定路径。"), true);
         if (!quiet)
-            navigate(5);
+            navigate(6);
         return;
     }
 
@@ -628,6 +639,17 @@ void MainWindow::restoreWindowState()
         const QRect frame = frameGeometry();
         move(available.center().x() - frame.width() / 2,
              available.center().y() - frame.height() / 2);
+    }
+
+    if (!isMaximized() && !isFullScreen()) {
+        const QRect safe = available.adjusted(12, 12, -12, -12);
+        if (width() > safe.width() || height() > safe.height())
+            resize(qMin(width(), safe.width()), qMin(height(), safe.height()));
+        const QRect frame = frameGeometry();
+        if (!safe.contains(frame)) {
+            move(qBound(safe.left(), frame.left(), safe.right() - frame.width() + 1),
+                 qBound(safe.top(), frame.top(), safe.bottom() - frame.height() + 1));
+        }
     }
 }
 

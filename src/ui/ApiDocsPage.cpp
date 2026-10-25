@@ -34,7 +34,7 @@ ApiDocsPage::ApiDocsPage(AppSettings *settings, ServerController *controller, QW
 void ApiDocsPage::buildUi()
 {
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(28, 8, 28, 22);
+    layout->setContentsMargins(32, 10, 32, 24);
     layout->setSpacing(0);
 
     auto *scroll = new QScrollArea(this);

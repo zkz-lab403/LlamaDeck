@@ -236,8 +236,8 @@ ModelPage::ModelPage(AppSettings *settings, ServerController *controller, QWidge
 void ModelPage::buildUi()
 {
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(28, 8, 28, 22);
-    layout->setSpacing(14);
+    layout->setContentsMargins(32, 10, 32, 24);
+    layout->setSpacing(16);
 
     m_banner = new QFrame(this);
     m_banner->setObjectName(QStringLiteral("CardFlat"));

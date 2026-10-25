@@ -2,6 +2,7 @@
 
 #include "AppSettings.h"
 #include "Icons.h"
+#include "KnowledgeStore.h"
 #include "ServerController.h"
 #include "SpeedChart.h"
 #include "Theme.h"
@@ -119,10 +120,12 @@ QString extractErrorMessage(const QByteArray &payload)
 
 } // namespace
 
-ApiPage::ApiPage(AppSettings *settings, ServerController *controller, QWidget *parent)
+ApiPage::ApiPage(AppSettings *settings, ServerController *controller, KnowledgeStore *knowledge,
+                 QWidget *parent)
     : QWidget(parent)
     , m_settings(settings)
     , m_controller(controller)
+    , m_knowledge(knowledge)
     , m_network(new QNetworkAccessManager(this))
 {
     m_speedTimer = new QTimer(this);
@@ -146,7 +149,7 @@ ApiPage::ApiPage(AppSettings *settings, ServerController *controller, QWidget *p
 void ApiPage::buildUi()
 {
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(28, 8, 28, 22);
+    layout->setContentsMargins(32, 10, 32, 24);
     layout->setSpacing(0);
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
@@ -183,6 +186,12 @@ QWidget *ApiPage::buildChatCard()
     m_connectionBadge->setProperty("variant", QStringLiteral("muted"));
     m_connectionBadge->setAlignment(Qt::AlignCenter);
     header->addWidget(m_connectionBadge);
+
+    m_knowledgeBadge = makeLabel(QString(), QStringLiteral("Badge"), card);
+    m_knowledgeBadge->setProperty("variant", QStringLiteral("accent"));
+    m_knowledgeBadge->setAlignment(Qt::AlignCenter);
+    m_knowledgeBadge->hide();
+    header->addWidget(m_knowledgeBadge);
 
     auto *clearChat = new QPushButton(Icons::icon(Icons::Glyph::Trash, Theme::Muted, 14),
                                        QString(), card);
@@ -242,10 +251,19 @@ QWidget *ApiPage::buildChatCard()
     inputRow->addWidget(m_sendButton, 0, Qt::AlignBottom);
     layout->addLayout(inputRow);
 
+    auto *footerRow = new QHBoxLayout();
+    footerRow->setSpacing(8);
     auto *footer = makeLabel(QStringLiteral("Enter 发送 · Shift+Enter 换行 · 通过 /v1/chat/completions 流式返回"),
                              QStringLiteral("Hint"), card);
     footer->setWordWrap(true);
-    layout->addWidget(footer);
+    footerRow->addWidget(footer, 1);
+
+    auto *knowledgeLabel = makeLabel(QStringLiteral("知识库"), QStringLiteral("Hint"), card);
+    footerRow->addWidget(knowledgeLabel);
+    m_useKnowledge = new ToggleSwitch(card);
+    m_useKnowledge->setToolTip(QStringLiteral("发送时检索知识库并注入相关片段"));
+    footerRow->addWidget(m_useKnowledge);
+    layout->addLayout(footerRow);
 
     return card;
 }
@@ -436,9 +454,37 @@ void ApiPage::sendMessage()
         request.setRawHeader("Authorization",
                              "Bearer " + m_controller->options().apiKey.toUtf8());
 
+    QJsonArray messages = m_messages;
+    m_knowledgeBadge->hide();
+    if (m_useKnowledge->isChecked() && m_knowledge && m_knowledge->documentCount() > 0) {
+        const QVector<KnowledgeHit> hits = m_knowledge->search(text, 3);
+        if (hits.isEmpty()) {
+            emit toastRequested(QStringLiteral("知识库未命中相关内容，本次直接回答。"));
+        } else {
+            QString context = QStringLiteral(
+                "以下是从本地知识库检索到的片段，请优先依据这些内容回答；"
+                "如果与问题无关，请忽略并使用你自己的知识。\n\n");
+            for (int i = 0; i < hits.size(); ++i) {
+                context += QStringLiteral("[%1] 来源：%2\n%3\n\n")
+                               .arg(i + 1)
+                               .arg(hits.at(i).title, hits.at(i).text);
+            }
+
+            QJsonArray withContext;
+            withContext.append(QJsonObject{{QStringLiteral("role"), QStringLiteral("system")},
+                                           {QStringLiteral("content"), context}});
+            for (const QJsonValue &message : messages)
+                withContext.append(message);
+            messages = withContext;
+
+            m_knowledgeBadge->setText(QStringLiteral("知识库 ×%1").arg(hits.size()));
+            m_knowledgeBadge->show();
+        }
+    }
+
     QJsonObject payload;
     payload[QStringLiteral("model")] = QStringLiteral("default");
-    payload[QStringLiteral("messages")] = m_messages;
+    payload[QStringLiteral("messages")] = messages;
     payload[QStringLiteral("stream")] = true;
     payload[QStringLiteral("temperature")] = 0.7;
 
@@ -712,6 +758,7 @@ void ApiPage::resetChat()
     m_speedBadge->setText(QStringLiteral("空闲"));
     m_speedBadge->setProperty("variant", QStringLiteral("muted"));
     repolish(m_speedBadge);
+    m_knowledgeBadge->hide();
 
     appendBubble(QStringLiteral("启动推理服务后，即可在这里测试 OpenAI 兼容的对话接口。"),
                  false);

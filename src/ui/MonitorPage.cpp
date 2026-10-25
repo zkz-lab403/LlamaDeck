@@ -106,8 +106,8 @@ MonitorPage::MonitorPage(ServerController *controller, QWidget *parent)
 void MonitorPage::buildUi()
 {
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(28, 8, 28, 22);
-    layout->setSpacing(14);
+    layout->setContentsMargins(32, 10, 32, 24);
+    layout->setSpacing(16);
 
     auto *statsRow = new QHBoxLayout();
     statsRow->setSpacing(12);

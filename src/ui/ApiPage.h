@@ -7,6 +7,8 @@
 
 class AppSettings;
 class ServerController;
+class KnowledgeStore;
+class ToggleSwitch;
 class QLabel;
 class QPlainTextEdit;
 class QPushButton;
@@ -23,7 +25,8 @@ class ApiPage : public QWidget {
     Q_OBJECT
 
 public:
-    ApiPage(AppSettings *settings, ServerController *controller, QWidget *parent = nullptr);
+    ApiPage(AppSettings *settings, ServerController *controller, KnowledgeStore *knowledge,
+            QWidget *parent = nullptr);
 
 signals:
     void toastRequested(const QString &message);
@@ -49,6 +52,7 @@ private:
 
     AppSettings *m_settings = nullptr;
     ServerController *m_controller = nullptr;
+    KnowledgeStore *m_knowledge = nullptr;
     QNetworkAccessManager *m_network = nullptr;
     QNetworkReply *m_reply = nullptr;
     QTimer *m_speedTimer = nullptr;
@@ -62,6 +66,8 @@ private:
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_stopButton = nullptr;
     ChatBubble *m_streamingBubble = nullptr;
+    ToggleSwitch *m_useKnowledge = nullptr;
+    QLabel *m_knowledgeBadge = nullptr;
 
     QLabel *m_speedBadge = nullptr;
     StatCard *m_speedCard = nullptr;

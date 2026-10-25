@@ -12,14 +12,15 @@
 | 运行监控 | 健康检查、实时 token/s 速度曲线、峰值/平均速度、已生成 token 数、请求数、运行时长、实时日志 |
 | 系统资源 | CPU、内存、GPU 利用率、显存占用与 GPU 温度，每 2 秒采样（NVIDIA GPU 通过 NVML 读取） |
 | 历史记录 | 每次启动自动落盘：模型、状态、时长、平均/峰值速度、token 数、完整命令，支持复制、重放、导出 CSV |
-| API 接口 | 内置流式聊天测试（SSE），支持中途停止回答，右侧实时显示速度、首字延迟与已生成 token 数 |
+| 知识库 | 导入 txt / md / csv 等文本，自动分块并做本地检索；对话时可引用相关片段（无需嵌入模型） |
+| API 接口 | 内置流式聊天测试（SSE），支持中途停止回答、知识库引用开关，右侧实时显示速度、首字延迟与已生成 token 数 |
 | API 文档 | 汇总 `llama-server` 与本地控制 API 的端点列表，附 curl 调用示例 |
 | 设置 | 服务路径、模型目录、默认参数、启动行为、控制 API 开关与端口 |
 | 命令生成 | 参数改动后实时生成完整启动命令，可一键复制到终端复用 |
 
 其他细节：
 
-- 深色主题、自绘图标/开关/速度图表，高 DPI 适配，窗口按屏幕可用区域自动调整
+- 简约深色主题：低饱和配色、统一圆角与留白，自绘图标/开关/速度图表，高 DPI 适配，窗口按屏幕可用区域自动调整
 - 中文界面，Windows 原生暗色标题栏
 - 关闭窗口时可自动停止推理进程，避免端口占用
 - 上次使用的模型可自动启动
@@ -69,6 +70,14 @@ llama-server.exe --model "D:/models/Qwen3-4B-Q4_K_M.gguf" --host 127.0.0.1 --por
 - 显存吃紧时优先降低 `-ngl` 或使用 `q8_0/q4_0` KV 缓存，而不是直接减小上下文。
 - 内存充足时开启 `--mlock` 可避免运行中模型被换出；模型比空闲内存大时不要开启。
 - 在 **运行监控 → 系统资源** 里观察：GPU 利用率低而 CPU 高，通常说明层没有卸载到 GPU（显存不足或 `-ngl` 太小）。
+
+## 知识库
+
+1. 打开 **知识库** 页，点击 **添加文件**，选择要导入的文本（支持 `.txt` `.md` `.csv` `.json` `.log` 等，单文件 ≤ 1 MB，最多 200 个文档、总计 4 M 字符）。
+2. 文档会按段落切成约 400 字的片段并持久化；右侧 **检索测试** 可以直接输入问题，查看命中的片段与相关度。
+3. 在 **API 接口** 页，打开聊天框右下角的 **知识库** 开关，发送消息时会检索最相关的 3 个片段，作为 system 消息注入，标题旁会显示 `知识库 ×N`。
+
+检索采用本地关键词匹配（英文按单词、中文按二字词切分并做长度归一化），不需要部署嵌入模型，离线可用。删除文档或清空知识库不会影响模型文件。
 
 ## API 接口
 
@@ -145,6 +154,7 @@ windeployqt --release --no-translations --compiler-runtime build/LlamaDeck.exe
 │  │  ├─ GgufParser.*      # GGUF 头部元数据解析
 │  │  ├─ ModelStore.*      # 模型扫描、量化识别、格式化
 │  │  ├─ HistoryStore.*    # 历史 JSON 持久化、CSV 导出
+│  │  ├─ KnowledgeStore.*  # 文档导入、分块、本地检索与持久化
 │  │  ├─ ServerController.*# 进程管理、健康检查、metrics 与日志测速
 │  │  ├─ SystemMonitor.*   # CPU / 内存 / NVIDIA GPU 采样
 │  │  └─ ControlApiServer.*# 本地 HTTP 控制 API
@@ -156,6 +166,7 @@ windeployqt --release --no-translations --compiler-runtime build/LlamaDeck.exe
 │     ├─ ModelPage.*       # 模型管理
 │     ├─ MonitorPage.*     # 运行监控
 │     ├─ HistoryPage.*     # 历史记录
+│     ├─ KnowledgePage.*   # 知识库文档管理与检索测试
 │     ├─ ApiPage.*         # 流式聊天测试、停止生成与实时速度
 │     ├─ ApiDocsPage.*     # 推理服务与控制 API 端点说明
 │     ├─ SettingsPage.*    # 设置
@@ -169,6 +180,7 @@ windeployqt --release --no-translations --compiler-runtime build/LlamaDeck.exe
 
 - `settings.ini`：界面与服务配置
 - `history.json`：启动历史（最多保留 300 条）
+- `knowledge.json`：知识库文档与分块内容
 
 首次运行会自动创建该目录；删除即可恢复出厂状态。
 

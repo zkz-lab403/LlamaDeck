@@ -18,6 +18,8 @@ set(SOURCES
     src/core/ModelStore.cpp
     src/core/HistoryStore.h
     src/core/HistoryStore.cpp
+    src/core/KnowledgeStore.h
+    src/core/KnowledgeStore.cpp
     src/core/ServerController.h
     src/core/ServerController.cpp
     src/core/SystemMonitor.h
@@ -38,6 +40,8 @@ set(SOURCES
     src/ui/MonitorPage.cpp
     src/ui/HistoryPage.h
     src/ui/HistoryPage.cpp
+    src/ui/KnowledgePage.h
+    src/ui/KnowledgePage.cpp
     src/ui/ApiPage.h
     src/ui/ApiPage.cpp
     src/ui/ApiDocsPage.h

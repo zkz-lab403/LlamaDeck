@@ -33,7 +33,7 @@ HistoryPage::HistoryPage(HistoryStore *store, QWidget *parent)
 void HistoryPage::buildUi()
 {
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(28, 8, 28, 22);
+    layout->setContentsMargins(32, 10, 32, 24);
     layout->setSpacing(14);
 
     auto *toolbar = new QHBoxLayout();

@@ -10,6 +10,7 @@ enum class Glyph {
     Models,
     Monitor,
     History,
+    Book,
     Api,
     Settings,
     Play,

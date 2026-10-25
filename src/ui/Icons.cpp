@@ -65,6 +65,15 @@ QPixmap pixmap(Glyph glyph, const QColor &color, int size)
         p.drawLine(QPointF(12.0, 8.0), QPointF(12.0, 12.2));
         p.drawLine(QPointF(12.0, 12.2), QPointF(15.4, 14.2));
         break;
+    case Glyph::Book:
+        p.drawLine(QPointF(4.0, 5.5), QPointF(4.0, 19.0));
+        p.drawLine(QPointF(20.0, 5.5), QPointF(20.0, 19.0));
+        p.drawLine(QPointF(4.0, 5.5), QPointF(12.0, 7.0));
+        p.drawLine(QPointF(12.0, 7.0), QPointF(20.0, 5.5));
+        p.drawLine(QPointF(12.0, 7.0), QPointF(12.0, 20.2));
+        p.drawLine(QPointF(4.0, 19.0), QPointF(12.0, 20.2));
+        p.drawLine(QPointF(12.0, 20.2), QPointF(20.0, 19.0));
+        break;
     case Glyph::Api: {
         QPainterPath left;
         left.moveTo(10.0, 4.0);
